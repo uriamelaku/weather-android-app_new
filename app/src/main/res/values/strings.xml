@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">Weather_Check</string>
+    <string name="go_to_login">לחץ כאן להתחבור</string>
+
+    <!-- Login Activity -->
+    <string name="login_title">התחברות</string>
+    <string name="username_hint">שם משתמש</string>
+    <string name="password_hint">סיסמה</string>
+    <string name="login_button">התחבר</string>
+    <string name="register_link">אין לך חשבון? לחץ כאן להרשמה</string>
+    <string name="check_server_button">בדיקת חיבור לשרת</string>
+    <string name="server_connected">✅ מחובר (pong)</string>
+    <string name="server_disconnected">❌ אין חיבור</string>
+
+    <!-- Register Activity -->
+    <string name="register_title">הרשמה</string>
+    <string name="new_username_hint">שם משתמש חדש</string>
+    <string name="new_password_hint">סיסמה חדשה</string>
+    <string name="register_button">הרשמה</string>
+</resources>
