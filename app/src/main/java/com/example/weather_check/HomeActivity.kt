@@ -4,18 +4,17 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.weather_check.api.ApiHelper
-import com.example.weather_check.models.FavoritesResponse
-import com.example.weather_check.models.HistoryResponse
-import com.example.weather_check.models.MessageResponse
 import com.example.weather_check.models.WeatherResponse
 import com.example.weather_check.utils.TokenManager
 import com.google.android.material.textfield.TextInputEditText
@@ -30,6 +29,8 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 class HomeActivity : AppCompatActivity() {
+    private enum class SelectedMode { NONE, HISTORY, FAVORITES }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
@@ -40,7 +41,19 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var cityInput: TextInputEditText
     private lateinit var emptyStateCard: CardView
     private lateinit var weatherCard: CardView
+
+    private lateinit var listSection: LinearLayout
+    private lateinit var tvListTitle: TextView
+    private lateinit var tvListEmpty: TextView
+    private lateinit var rvList: RecyclerView
+    private lateinit var btnToggleFavorite: Button
+
+    private lateinit var listAdapter: WeatherListAdapter
+
     private var currentWeather: WeatherResponse? = null
+    private var selectedMode: SelectedMode = SelectedMode.NONE
+    private val historyItems = mutableListOf<WeatherResponse>()
+    private val favoriteItems = mutableListOf<WeatherResponse>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,6 +69,23 @@ class HomeActivity : AppCompatActivity() {
         emptyStateCard = findViewById(R.id.cardEmptyState)
         weatherCard = findViewById(R.id.cardWeather)
 
+        listSection = findViewById(R.id.listSection)
+        tvListTitle = findViewById(R.id.tvListTitle)
+        tvListEmpty = findViewById(R.id.tvListEmpty)
+        rvList = findViewById(R.id.rvList)
+
+        btnToggleFavorite = findViewById(R.id.btnToggleFavorite)
+
+        listAdapter = WeatherListAdapter { item -> onDeleteListItem(item) }
+        rvList.layoutManager = LinearLayoutManager(this)
+        rvList.adapter = listAdapter
+
+        // Keep list section hidden until explicit History/Favorites tap.
+        selectedMode = SelectedMode.NONE
+        listSection.visibility = View.GONE
+        tvListEmpty.visibility = View.GONE
+        rvList.visibility = View.GONE
+
         findViewById<Button>(R.id.btnSearch).setOnClickListener {
             val city = cityInput.text.toString().trim()
             if (city.isEmpty()) {
@@ -65,17 +95,19 @@ class HomeActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<Button>(R.id.btnHistory).setOnClickListener { fetchHistory() }
-        findViewById<Button>(R.id.btnHistory).setOnLongClickListener {
-            clearHistory()
-            true
+        findViewById<Button>(R.id.btnHistory).setOnClickListener {
+            selectedMode = SelectedMode.HISTORY
+            renderSelectedList()
         }
 
-        findViewById<Button>(R.id.btnFavorites).setOnClickListener { fetchFavorites() }
-        findViewById<Button>(R.id.btnFavorites).setOnLongClickListener {
-            toggleCurrentCityFavorite()
-            true
+        findViewById<Button>(R.id.btnFavorites).setOnClickListener {
+            selectedMode = SelectedMode.FAVORITES
+            renderSelectedList()
         }
+
+        btnToggleFavorite.setOnClickListener { toggleCurrentFavorite() }
+
+        updateToggleButtons()
     }
 
     private fun fetchWeather(city: String) {
@@ -115,6 +147,7 @@ class HomeActivity : AppCompatActivity() {
                             try {
                                 val weatherResponse = gson.fromJson(responseBody, WeatherResponse::class.java)
                                 displayWeather(weatherResponse)
+                                addToHistoryFromSearch(weatherResponse)
                                 Toast.makeText(
                                     this@HomeActivity,
                                     getString(R.string.weather_loaded_success),
@@ -149,182 +182,88 @@ class HomeActivity : AppCompatActivity() {
         })
     }
 
-    private fun fetchHistory() {
-        val token = TokenManager.getToken(this)
-        if (token == null) {
-            Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
+    private fun addToHistoryFromSearch(weather: WeatherResponse) {
+        historyItems.removeAll { isSameLocation(it, weather) }
+        historyItems.add(0, weather)
+        if (selectedMode == SelectedMode.HISTORY) {
+            renderSelectedList()
+        }
+    }
+
+    private fun toggleCurrentFavorite() {
+        val weather = currentWeather ?: run {
+            Toast.makeText(this, getString(R.string.select_weather_first), Toast.LENGTH_SHORT).show()
             return
         }
 
-        Thread {
-            val response = ApiHelper.getHistoryWithAuth(token)
-            val body = response.body?.string()
-            val code = response.code
-            val success = response.isSuccessful
-            response.close()
+        val existingIndex = favoriteItems.indexOfFirst { isSameLocation(it, weather) }
+        if (existingIndex >= 0) {
+            favoriteItems.removeAt(existingIndex)
+        } else {
+            favoriteItems.add(0, weather)
+        }
 
-            runOnUiThread {
-                when {
-                    success && !body.isNullOrEmpty() -> {
-                        try {
-                            val history = gson.fromJson(body, HistoryResponse::class.java).history
-                            if (history.isEmpty()) {
-                                Toast.makeText(this, "אין היסטוריה להצגה", Toast.LENGTH_SHORT).show()
-                            } else {
-                                val lines = history.mapIndexed { index, item ->
-                                    "${index + 1}. ${item.city}, ${item.country} ${item.temp.toInt()}°"
-                                }
-                                AlertDialog.Builder(this)
-                                    .setTitle("היסטוריית חיפושים")
-                                    .setMessage(lines.joinToString("\n"))
-                                    .setPositiveButton("OK", null)
-                                    .setNeutralButton("נקה") { _, _ -> clearHistory() }
-                                    .show()
-                            }
-                        } catch (e: Exception) {
-                            Toast.makeText(this, getString(R.string.parse_error), Toast.LENGTH_LONG).show()
-                        }
-                    }
-                    code == 401 -> handleUnauthorized()
-                    code == 400 || code == 404 || code == 500 -> {
-                        Toast.makeText(this, ApiHelper.parseError(body), Toast.LENGTH_LONG).show()
-                    }
-                    else -> Toast.makeText(this, "History error: $code", Toast.LENGTH_LONG).show()
-                }
-            }
-        }.start()
+        updateToggleButtons()
+        if (selectedMode == SelectedMode.FAVORITES) {
+            renderSelectedList()
+        }
     }
 
-    private fun clearHistory() {
-        val token = TokenManager.getToken(this)
-        if (token == null) {
-            Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
+    private fun onDeleteListItem(item: WeatherResponse) {
+        when (selectedMode) {
+            SelectedMode.HISTORY -> historyItems.removeAll { isSameLocation(it, item) }
+            SelectedMode.FAVORITES -> favoriteItems.removeAll { isSameLocation(it, item) }
+            SelectedMode.NONE -> return
+        }
+
+        // If current weather item was removed from favorites, only button state changes.
+        updateToggleButtons()
+        renderSelectedList()
+    }
+
+    private fun renderSelectedList() {
+        val itemsToShow = when (selectedMode) {
+            SelectedMode.HISTORY -> historyItems
+            SelectedMode.FAVORITES -> favoriteItems
+            SelectedMode.NONE -> emptyList()
+        }
+
+        if (selectedMode == SelectedMode.NONE) {
+            listSection.visibility = View.GONE
             return
         }
 
-        Thread {
-            val response = ApiHelper.clearHistoryWithAuth(token)
-            val body = response.body?.string()
-            val code = response.code
-            val success = response.isSuccessful
-            response.close()
-
-            runOnUiThread {
-                when {
-                    success && !body.isNullOrEmpty() -> {
-                        try {
-                            val message = gson.fromJson(body, MessageResponse::class.java).message
-                            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-                        } catch (e: Exception) {
-                            Toast.makeText(this, "History cleared", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                    code == 401 -> handleUnauthorized()
-                    code == 404 || code == 500 -> Toast.makeText(this, ApiHelper.parseError(body), Toast.LENGTH_LONG).show()
-                    else -> Toast.makeText(this, "History clear error: $code", Toast.LENGTH_LONG).show()
-                }
-            }
-        }.start()
-    }
-
-    private fun fetchFavorites() {
-        val token = TokenManager.getToken(this)
-        if (token == null) {
-            Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
-            return
+        tvListTitle.text = when (selectedMode) {
+            SelectedMode.HISTORY -> getString(R.string.history_title)
+            SelectedMode.FAVORITES -> getString(R.string.favorites_title)
+            SelectedMode.NONE -> ""
         }
 
-        Thread {
-            val response = ApiHelper.getFavoritesWithAuth(token)
-            val body = response.body?.string()
-            val code = response.code
-            val success = response.isSuccessful
-            response.close()
-
-            runOnUiThread {
-                when {
-                    success && !body.isNullOrEmpty() -> {
-                        try {
-                            val favorites = gson.fromJson(body, FavoritesResponse::class.java).favorites
-                            if (favorites.isEmpty()) {
-                                Toast.makeText(this, "אין מועדפים להצגה", Toast.LENGTH_SHORT).show()
-                            } else {
-                                val lines = favorites.mapIndexed { index, item ->
-                                    "${index + 1}. ${item.city}, ${item.country}"
-                                }
-                                AlertDialog.Builder(this)
-                                    .setTitle("ערים מועדפות")
-                                    .setMessage(lines.joinToString("\n"))
-                                    .setPositiveButton("OK", null)
-                                    .show()
-                            }
-                        } catch (e: Exception) {
-                            Toast.makeText(this, getString(R.string.parse_error), Toast.LENGTH_LONG).show()
-                        }
-                    }
-                    code == 401 -> handleUnauthorized()
-                    code == 404 || code == 500 -> Toast.makeText(this, ApiHelper.parseError(body), Toast.LENGTH_LONG).show()
-                    else -> Toast.makeText(this, "Favorites error: $code", Toast.LENGTH_LONG).show()
-                }
-            }
-        }.start()
+        listSection.visibility = View.VISIBLE
+        listAdapter.submitItems(itemsToShow)
+        tvListEmpty.visibility = if (itemsToShow.isEmpty()) View.VISIBLE else View.GONE
+        rvList.visibility = if (itemsToShow.isEmpty()) View.GONE else View.VISIBLE
     }
 
-    private fun toggleCurrentCityFavorite() {
+    private fun updateToggleButtons() {
         val weather = currentWeather
         if (weather == null) {
-            Toast.makeText(this, "חפש קודם עיר", Toast.LENGTH_SHORT).show()
+            btnToggleFavorite.text = getString(R.string.add_to_favorites)
             return
         }
 
-        val token = TokenManager.getToken(this)
-        if (token == null) {
-            Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
-            return
+        val isFavorite = favoriteItems.any { isSameLocation(it, weather) }
+
+        btnToggleFavorite.text = if (isFavorite) {
+            getString(R.string.remove_from_favorites)
+        } else {
+            getString(R.string.add_to_favorites)
         }
+    }
 
-        Thread {
-            val addResponse = ApiHelper.addFavoriteWithAuth(token, weather.city, weather.country)
-            val addBody = addResponse.body?.string()
-            val addCode = addResponse.code
-            val addSuccess = addResponse.isSuccessful
-            addResponse.close()
-
-            if (addSuccess && addCode == 201) {
-                runOnUiThread { Toast.makeText(this, "Added to favorites", Toast.LENGTH_SHORT).show() }
-                return@Thread
-            }
-
-            if (addCode == 409) {
-                val removeResponse = ApiHelper.removeFavoriteWithAuth(token, weather.city)
-                val removeBody = removeResponse.body?.string()
-                val removeCode = removeResponse.code
-                val removeSuccess = removeResponse.isSuccessful
-                removeResponse.close()
-
-                runOnUiThread {
-                    when {
-                        removeSuccess -> Toast.makeText(this, "Removed from favorites", Toast.LENGTH_SHORT).show()
-                        removeCode == 401 -> handleUnauthorized()
-                        removeCode == 400 || removeCode == 404 || removeCode == 500 -> {
-                            Toast.makeText(this, ApiHelper.parseError(removeBody), Toast.LENGTH_LONG).show()
-                        }
-                        else -> Toast.makeText(this, "Favorites update error: $removeCode", Toast.LENGTH_LONG).show()
-                    }
-                }
-                return@Thread
-            }
-
-            runOnUiThread {
-                when {
-                    addCode == 401 -> handleUnauthorized()
-                    addCode == 400 || addCode == 404 || addCode == 500 -> {
-                        Toast.makeText(this, ApiHelper.parseError(addBody), Toast.LENGTH_LONG).show()
-                    }
-                    else -> Toast.makeText(this, "Favorites update error: $addCode", Toast.LENGTH_LONG).show()
-                }
-            }
-        }.start()
+    private fun isSameLocation(first: WeatherResponse, second: WeatherResponse): Boolean {
+        return first.city.equals(second.city, ignoreCase = true) &&
+            first.country.equals(second.country, ignoreCase = true)
     }
 
     private fun handleUnauthorized() {
@@ -347,5 +286,7 @@ class HomeActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tvDescription).text = weather.description
         findViewById<TextView>(R.id.tvHumidity).text = "${weather.humidity}%"
         findViewById<TextView>(R.id.tvWindSpeed).text = "${weather.windSpeed} m/s"
+
+        updateToggleButtons()
     }
 }

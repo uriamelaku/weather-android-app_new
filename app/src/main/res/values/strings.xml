@@ -54,6 +54,15 @@
     <string name="token_invalid_error">אישור הגישה לא תקף. אנא התחבר מחדש</string>
     <string name="weather_loaded_success">מזג האוויר נטען בהצלחה</string>
     <string name="parse_error">שגיאה בעיבוד הנתונים</string>
+
+    <!-- Inline List Section -->
+    <string name="history_title">היסטוריה</string>
+    <string name="favorites_title">מועדפים</string>
+    <string name="no_list_data">אין נתונים</string>
+    <string name="add_to_favorites">הוסף למועדפים</string>
+    <string name="remove_from_favorites">הסר מהמועדפים</string>
+    <string name="add_to_history">הוסף להיסטוריה</string>
+    <string name="remove_from_history">הסר מההיסטוריה</string>
+    <string name="delete_item">מחק פריט</string>
+    <string name="select_weather_first">חפש קודם עיר כדי לעדכן רשימות</string>
 </resources>
-
-
