@@ -13,6 +13,6 @@ data class WeatherResponse(
     val windSpeed: Double,      // Wind speed in m/s
     val description: String,    // Weather description (e.g., "clear sky")
     val icon: String,           // OpenWeather icon code (e.g., "01d")
-    val timestamp: Long         // Unix timestamp from OpenWeather
+    val timestamp: Long,        // Unix timestamp from OpenWeather
+    val searchedAt: String? = null // Search time from history endpoint (ISO string)
 )
-

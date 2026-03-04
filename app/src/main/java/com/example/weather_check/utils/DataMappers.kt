@@ -21,7 +21,8 @@ fun HistoryItem.toWeatherResponse(): WeatherResponse {
         windSpeed = this.windSpeed,
         description = this.description,
         icon = this.icon,
-        timestamp = this.timestamp  // Use original timestamp from server
+        timestamp = this.timestamp,  // Use original timestamp from server
+        searchedAt = this.searchedAt
     )
 }
 
@@ -40,6 +41,7 @@ fun FavoriteItem.toWeatherResponse(): WeatherResponse {
         windSpeed = 0.0,     // Not available in FavoriteItem
         description = "",    // Not available in FavoriteItem
         icon = "",           // Not available in FavoriteItem
-        timestamp = System.currentTimeMillis()
+        timestamp = System.currentTimeMillis(),
+        searchedAt = null
     )
 }

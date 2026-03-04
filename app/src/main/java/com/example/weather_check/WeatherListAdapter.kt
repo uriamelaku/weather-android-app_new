@@ -8,6 +8,10 @@ import android.widget.ImageButton
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.weather_check.models.WeatherResponse
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 class WeatherListAdapter(
     private val onDeleteClick: (WeatherResponse) -> Unit
@@ -41,20 +45,64 @@ class WeatherListAdapter(
     class WeatherItemViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val title: TextView = itemView.findViewById(R.id.tvItemTitle)
         private val subtitle: TextView = itemView.findViewById(R.id.tvItemSubtitle)
+        private val dateTime: TextView = itemView.findViewById(R.id.tvItemDateTime)
         private val deleteButton: ImageButton = itemView.findViewById(R.id.btnDeleteItem)
 
         fun bind(item: WeatherResponse, onDeleteClick: (WeatherResponse) -> Unit) {
             title.text = "${item.city}, ${item.country}"
-            // Show weather data only if available (temp > 0)
+
             if (item.temp > 0.0 || item.description.isNotEmpty()) {
                 subtitle.text = "${item.temp.toInt()}° - ${item.description}"
                 subtitle.visibility = View.VISIBLE
             } else {
-                // Hide subtitle if no weather data
                 subtitle.visibility = View.GONE
             }
+
+            val timeLabel = formatHistoryDateTime(item)
+            if (timeLabel != null) {
+                dateTime.text = timeLabel
+                dateTime.visibility = View.VISIBLE
+            } else {
+                dateTime.visibility = View.GONE
+            }
+
             deleteButton.setOnClickListener { onDeleteClick(item) }
+        }
+
+        private fun formatHistoryDateTime(item: WeatherResponse): String? {
+            // Only history items carry weather details + searchedAt from server.
+            if (item.temp <= 0.0 && item.description.isEmpty()) return null
+
+            val israelTz = TimeZone.getTimeZone("Asia/Jerusalem")
+
+            // Prefer server search-time string when available.
+            val isoRaw = item.searchedAt
+            if (!isoRaw.isNullOrBlank()) {
+                val normalized = isoRaw.replace("Z", "+0000")
+                val parsePatterns = listOf(
+                    "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+                    "yyyy-MM-dd'T'HH:mm:ssZ"
+                )
+
+                for (pattern in parsePatterns) {
+                    try {
+                        val parser = SimpleDateFormat(pattern, Locale.US)
+                        val parsedDate = parser.parse(normalized) ?: continue
+                        val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.forLanguageTag("he-IL"))
+                        formatter.timeZone = israelTz
+                        return formatter.format(parsedDate)
+                    } catch (_: Exception) {
+                        // Try next supported pattern
+                    }
+                }
+            }
+
+            // Fallback to numeric timestamp (seconds or millis).
+            if (item.timestamp <= 0L) return null
+            val millis = if (item.timestamp < 1_000_000_000_000L) item.timestamp * 1000 else item.timestamp
+            val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.forLanguageTag("he-IL"))
+            formatter.timeZone = israelTz
+            return formatter.format(Date(millis))
         }
     }
 }
-
