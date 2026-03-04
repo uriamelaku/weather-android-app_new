@@ -32,9 +32,9 @@
     <string name="logout_success">התנתקת בהצלחה</string>
 
     <!-- Home Activity -->
-    <string name="weather_title">מזג האוויר</string>
+    <string name="weather_title">אפליקציה לבדיקת מזג האוויר</string>
     <string name="weather_subtitle">חיפוש עיר ושמירת מועדפים בקלות</string>
-    <string name="greeting">שלום, %s</string>
+    <string name="greeting">שלום %s</string>
     <string name="greeting_without_name">שלום</string>
     <string name="search_hint">הכנס שם עיר</string>
     <string name="search_button">חיפוש</string>
