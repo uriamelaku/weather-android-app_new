@@ -40,8 +40,18 @@
     <string name="search_button">חיפוש</string>
     <string name="history_button">היסטוריה</string>
     <string name="favorites_button">מועדפים</string>
+    <string name="use_my_location">השתמש במיקום שלי</string>
     <string name="no_weather_data">אין נתונים להצגה כרגע</string>
     <string name="search_city_message">חפש עיר כדי לראות את מזג האוויר</string>
+
+    <!-- Location & GPS -->
+    <string name="location_permission_required">הרשאת מיקום נדרשת</string>
+    <string name="location_permission_explanation">אנחנו צריכים גישה למיקום כדי להציג את מזג האוויר באזור שלך</string>
+    <string name="location_permission_denied">אין אפשרות לקבל מיקום ללא הרשאה</string>
+    <string name="getting_location">מקבל מיקום…</string>
+    <string name="location_not_available">לא ניתן לקבל מיקום כרגע</string>
+    <string name="location_error">שגיאה בקבלת מיקום</string>
+    <string name="gps_disabled">GPS כבוי. אנא הפעל אותו בהגדרות</string>
 
     <!-- Weather Display -->
     <string name="feels_like">מרגיש כמו</string>

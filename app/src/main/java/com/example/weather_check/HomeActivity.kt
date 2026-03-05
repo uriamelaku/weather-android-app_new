@@ -1,6 +1,10 @@
 package com.example.weather_check
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.Geocoder
+import android.location.Location
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -8,8 +12,11 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -19,6 +26,10 @@ import com.example.weather_check.models.WeatherResponse
 import com.example.weather_check.repository.NetworkRepository
 import com.example.weather_check.utils.TokenManager
 import com.example.weather_check.utils.toWeatherResponse
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.android.material.textfield.TextInputEditText
 import com.google.gson.Gson
 import okhttp3.Call
@@ -28,10 +39,15 @@ import okhttp3.Request
 import okhttp3.Response
 import java.io.IOException
 import java.net.URLEncoder
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class HomeActivity : AppCompatActivity() {
     private enum class SelectedMode { NONE, HISTORY, FAVORITES }
+
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
+    }
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -40,6 +56,7 @@ class HomeActivity : AppCompatActivity() {
 
     private val gson = Gson()
 
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var cityInput: TextInputEditText
     private lateinit var emptyStateCard: CardView
     private lateinit var weatherCard: CardView
@@ -77,6 +94,9 @@ class HomeActivity : AppCompatActivity() {
         rvList = findViewById(R.id.rvList)
 
         btnToggleFavorite = findViewById(R.id.btnToggleFavorite)
+
+        // Initialize location client
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         // Display greeting with username
         val tvGreeting = findViewById<TextView>(R.id.tvGreeting)
@@ -125,6 +145,10 @@ class HomeActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnFavorites).setOnClickListener {
             val intent = Intent(this, FavoritesActivity::class.java)
             startActivity(intent)
+        }
+
+        findViewById<Button>(R.id.btnUseMyLocation).setOnClickListener {
+            requestLocationPermission()
         }
 
         btnToggleFavorite.setOnClickListener { toggleCurrentFavorite() }
@@ -519,6 +543,266 @@ class HomeActivity : AppCompatActivity() {
             desc.contains("wind") -> "💨"
             desc.contains("tornado") -> "🌪️"
             else -> "🌡️"
+        }
+    }
+
+    // ============= GPS Location Functions =============
+
+    private fun requestLocationPermission() {
+        when {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED -> {
+                // Permission already granted
+                getCurrentLocationAndFetchWeather()
+            }
+            ActivityCompat.shouldShowRequestPermissionRationale(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) -> {
+                // Show explanation dialog
+                showPermissionExplanationDialog()
+            }
+            else -> {
+                // Request permission
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ),
+                    LOCATION_PERMISSION_REQUEST_CODE
+                )
+            }
+        }
+    }
+
+    private fun showPermissionExplanationDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.location_permission_required))
+            .setMessage(getString(R.string.location_permission_explanation))
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ),
+                    LOCATION_PERMISSION_REQUEST_CODE
+                )
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        when (requestCode) {
+            LOCATION_PERMISSION_REQUEST_CODE -> {
+                if (grantResults.isNotEmpty() &&
+                    grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // Permission granted
+                    getCurrentLocationAndFetchWeather()
+                } else {
+                    // Permission denied
+                    Toast.makeText(
+                        this,
+                        getString(R.string.location_permission_denied),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+
+    private fun getCurrentLocationAndFetchWeather() {
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestLocationPermission()
+            return
+        }
+
+        // Show loading message
+        Toast.makeText(this, getString(R.string.getting_location), Toast.LENGTH_SHORT).show()
+
+        // Try to get last known location first (faster)
+        fusedLocationClient.lastLocation
+            .addOnSuccessListener { location: Location? ->
+                if (location != null) {
+                    // We have a last known location
+                    fetchWeatherByLocation(location.latitude, location.longitude)
+                } else {
+                    // No last known location, get current location
+                    getCurrentLocation()
+                }
+            }
+            .addOnFailureListener { exception ->
+                Toast.makeText(
+                    this,
+                    "${getString(R.string.location_error)}: ${exception.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+    }
+
+    private fun getCurrentLocation() {
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val cancellationTokenSource = CancellationTokenSource()
+
+        fusedLocationClient.getCurrentLocation(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            cancellationTokenSource.token
+        ).addOnSuccessListener { location: Location? ->
+            if (location != null) {
+                fetchWeatherByLocation(location.latitude, location.longitude)
+            } else {
+                Toast.makeText(
+                    this,
+                    getString(R.string.location_not_available),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }.addOnFailureListener { exception ->
+            Toast.makeText(
+                this,
+                "${getString(R.string.location_error)}: ${exception.message}",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun fetchWeatherByLocation(lat: Double, lon: Double) {
+        val token = TokenManager.getToken(this)
+        if (token == null) {
+            Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val url = "${ApiConfig.BASE_URL}/api/weather?lat=$lat&lon=$lon"
+
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                runOnUiThread {
+                    Toast.makeText(
+                        this@HomeActivity,
+                        "${getString(R.string.network_error)}: ${e.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val responseBody = response.body?.string()
+
+                runOnUiThread {
+                    when (response.code) {
+                        200 -> {
+                            try {
+                                val weather = gson.fromJson(responseBody, WeatherResponse::class.java)
+                                currentWeather = weather
+                                displayWeather(weather)
+                                addToHistoryFromSearch(weather)
+
+                                val currentToken = TokenManager.getToken(this@HomeActivity)
+                                if (currentToken != null) {
+                                    loadFavoritesFromServer(currentToken)
+                                }
+
+                                Toast.makeText(
+                                    this@HomeActivity,
+                                    getString(R.string.weather_loaded_success),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(
+                                    this@HomeActivity,
+                                    "${getString(R.string.parse_error)}: ${e.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                        400 -> {
+                            val error = ApiHelper.parseError(responseBody)
+                            if (error.contains("city", ignoreCase = true) && error.contains("required", ignoreCase = true)) {
+                                fetchWeatherByResolvedCity(lat, lon)
+                            } else {
+                                Toast.makeText(this@HomeActivity, error, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        401 -> {
+                            handleUnauthorized()
+                        }
+                        404 -> {
+                            Toast.makeText(
+                                this@HomeActivity,
+                                getString(R.string.city_not_found_error),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        else -> {
+                            val error = ApiHelper.parseError(responseBody)
+                            Toast.makeText(
+                                this@HomeActivity,
+                                "${getString(R.string.weather_error)}: $error",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+                response.close()
+            }
+        })
+    }
+
+    private fun fetchWeatherByResolvedCity(lat: Double, lon: Double) {
+        Thread {
+            val city = resolveCityName(lat, lon)
+            runOnUiThread {
+                if (city.isNullOrBlank()) {
+                    Toast.makeText(
+                        this,
+                        getString(R.string.location_not_available),
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    fetchWeather(city)
+                }
+            }
+        }.start()
+    }
+
+    private fun resolveCityName(lat: Double, lon: Double): String? {
+        return try {
+            val geocoder = Geocoder(this, Locale.getDefault())
+            val addresses = geocoder.getFromLocation(lat, lon, 1)
+            val address = addresses?.firstOrNull()
+            address?.locality
+                ?: address?.subAdminArea
+                ?: address?.adminArea
+        } catch (_: Exception) {
+            null
         }
     }
 }

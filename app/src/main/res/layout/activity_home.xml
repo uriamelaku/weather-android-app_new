@@ -165,6 +165,22 @@
                 android:layout_marginEnd="6dp"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
         </LinearLayout>
+
+        <!-- Use My Location Button -->
+        <Button
+            android:id="@+id/btnUseMyLocation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/use_my_location"
+            android:textSize="14sp"
+            android:textColor="@color/white"
+            android:backgroundTint="@color/purple_primary"
+            android:layout_marginTop="12dp"
+            android:drawableStart="@android:drawable/ic_menu_mylocation"
+            android:drawableTint="@color/white"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            style="?android:attr/buttonBarButtonStyle" />
     </LinearLayout>
 
     <!-- Empty State Card - No Weather Data Yet -->
