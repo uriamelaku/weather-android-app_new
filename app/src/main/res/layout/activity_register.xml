@@ -39,6 +39,17 @@
             android:layout_marginBottom="16dp" />
 
         <EditText
+            android:id="@+id/etNewEmail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Email Address"
+            android:inputType="textEmailAddress"
+            android:textDirection="rtl"
+            android:gravity="right"
+            android:autofillHints="emailAddress"
+            android:layout_marginBottom="16dp" />
+
+        <EditText
             android:id="@+id/etNewPassword"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnLogout.setOnClickListener {
-            TokenManager.clearToken(this)
+            TokenManager.clearAllTokens(this)
             Toast.makeText(this, getString(R.string.logout_success), Toast.LENGTH_SHORT).show()
             updateUIBasedOnLoginStatus()
         }

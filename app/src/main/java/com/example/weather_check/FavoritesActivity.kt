@@ -59,7 +59,7 @@ class FavoritesActivity : AppCompatActivity() {
     }
 
     private fun loadFavoritesData() {
-        val token = TokenManager.getToken(this)
+        val token = TokenManager.getJwtToken(this)
         if (token == null) {
             Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
             redirectToLogin()
@@ -95,7 +95,7 @@ class FavoritesActivity : AppCompatActivity() {
     }
 
     private fun onDeleteItem(item: WeatherResponse) {
-        val token = TokenManager.getToken(this)
+        val token = TokenManager.getJwtToken(this)
         if (token == null) {
             Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
             redirectToLogin()
@@ -172,7 +172,7 @@ class FavoritesActivity : AppCompatActivity() {
     }
 
     private fun clearAllFavorites() {
-        val token = TokenManager.getToken(this)
+        val token = TokenManager.getJwtToken(this)
         if (token == null) {
             Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
             redirectToLogin()
@@ -209,7 +209,7 @@ class FavoritesActivity : AppCompatActivity() {
     }
 
     private fun redirectToLogin() {
-        TokenManager.clearToken(this)
+        TokenManager.clearAllTokens(this)
         val intent = Intent(this, LoginActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)

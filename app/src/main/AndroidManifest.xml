@@ -32,6 +32,12 @@
             android:name=".RegisterActivity"
             android:exported="false" />
         <activity
+            android:name=".AuthMethodSelectionActivity"
+            android:exported="false" />
+        <activity
+            android:name=".OTPVerificationActivity"
+            android:exported="false" />
+        <activity
             android:name=".HomeActivity"
             android:exported="false" />
         <activity

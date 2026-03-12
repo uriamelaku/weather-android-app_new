@@ -41,7 +41,7 @@ class HistoryActivity : AppCompatActivity() {
         rvList.layoutManager = LinearLayoutManager(this)
 
         // Setup delete callback for individual items
-        listAdapter = WeatherListAdapter { item -> deleteHistoryItem(item) }
+        listAdapter = WeatherListAdapter { item -> onDeleteItem(item) }
         rvList.adapter = listAdapter
 
         btnBack = findViewById(R.id.btnBack)
@@ -59,7 +59,7 @@ class HistoryActivity : AppCompatActivity() {
     }
 
     private fun loadHistoryData() {
-        val token = TokenManager.getToken(this)
+        val token = TokenManager.getJwtToken(this)
         if (token == null) {
             Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
             redirectToLogin()
@@ -106,7 +106,7 @@ class HistoryActivity : AppCompatActivity() {
     }
 
     private fun clearAllHistory() {
-        val token = TokenManager.getToken(this)
+        val token = TokenManager.getJwtToken(this)
         if (token == null) {
             Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
             redirectToLogin()
@@ -142,8 +142,8 @@ class HistoryActivity : AppCompatActivity() {
         )
     }
 
-    private fun deleteHistoryItem(item: WeatherResponse) {
-        val token = TokenManager.getToken(this)
+    private fun onDeleteItem(item: WeatherResponse) {
+        val token = TokenManager.getJwtToken(this)
         if (token == null) {
             Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
             redirectToLogin()
@@ -190,7 +190,7 @@ class HistoryActivity : AppCompatActivity() {
     }
 
     private fun redirectToLogin() {
-        TokenManager.clearToken(this)
+        TokenManager.clearAllTokens(this)
         val intent = Intent(this, LoginActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)

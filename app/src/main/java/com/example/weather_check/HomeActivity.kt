@@ -110,7 +110,7 @@ class HomeActivity : AppCompatActivity() {
         // Setup logout button
         val btnLogout = findViewById<Button>(R.id.btnLogout)
         btnLogout.setOnClickListener {
-            TokenManager.clearToken(this)
+            TokenManager.clearAllTokens(this)
             Toast.makeText(this, getString(R.string.logout_success), Toast.LENGTH_SHORT).show()
             val intent = Intent(this, LoginActivity::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -160,14 +160,14 @@ class HomeActivity : AppCompatActivity() {
         super.onResume()
         // Reload favorites from server when returning to this activity
         // This ensures the favorite button state is up-to-date
-        val token = TokenManager.getToken(this)
+        val token = TokenManager.getJwtToken(this)
         if (token != null) {
             loadFavoritesFromServer(token)
         }
     }
 
     private fun fetchWeather(city: String) {
-        val token = TokenManager.getToken(this)
+        val token = TokenManager.getJwtToken(this)
         if (token == null) {
             Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
             return
@@ -252,7 +252,7 @@ class HomeActivity : AppCompatActivity() {
             return
         }
 
-        val token = TokenManager.getToken(this)
+        val token = TokenManager.getJwtToken(this)
         if (token == null) {
             Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
             return
@@ -374,7 +374,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun onDeleteListItem(item: WeatherResponse) {
-        val token = TokenManager.getToken(this)
+        val token = TokenManager.getJwtToken(this)
         if (token == null) {
             Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
             return
@@ -501,7 +501,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun handleUnauthorized() {
-        TokenManager.clearToken(this)
+        TokenManager.clearAllTokens(this)
         Toast.makeText(this, getString(R.string.token_invalid_error), Toast.LENGTH_LONG).show()
         val intent = Intent(this, LoginActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -688,7 +688,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun fetchWeatherByLocation(lat: Double, lon: Double) {
-        val token = TokenManager.getToken(this)
+        val token = TokenManager.getJwtToken(this)
         if (token == null) {
             Toast.makeText(this, getString(R.string.token_missing_error), Toast.LENGTH_LONG).show()
             return
@@ -725,7 +725,7 @@ class HomeActivity : AppCompatActivity() {
                                 displayWeather(weather)
                                 addToHistoryFromSearch(weather)
 
-                                val currentToken = TokenManager.getToken(this@HomeActivity)
+                                val currentToken = TokenManager.getJwtToken(this@HomeActivity)
                                 if (currentToken != null) {
                                     loadFavoritesFromServer(currentToken)
                                 }

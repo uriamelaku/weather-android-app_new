@@ -42,27 +42,33 @@ class RegisterActivity : AppCompatActivity() {
         }
 
         val etNewUsername = findViewById<EditText>(R.id.etNewUsername)
+        val etNewEmail = findViewById<EditText>(R.id.etNewEmail)
         val etNewPassword = findViewById<EditText>(R.id.etNewPassword)
         val btnRegister = findViewById<Button>(R.id.btnRegister)
 
         btnRegister.setOnClickListener {
             val username = etNewUsername.text.toString().trim()
+            val email = etNewEmail.text.toString().trim()
             val password = etNewPassword.text.toString().trim()
 
-            if (username.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, getString(R.string.empty_fields_error), Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+            when {
+                username.isEmpty() || email.isEmpty() || password.isEmpty() -> {
+                    Toast.makeText(this, getString(R.string.empty_fields_error), Toast.LENGTH_SHORT).show()
+                }
+                !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches() -> {
+                    Toast.makeText(this, "Please enter a valid email address", Toast.LENGTH_SHORT).show()
+                }
+                else -> {
+                    registerUser(username, email, password)
+                }
             }
-
-            registerUser(username, password)
         }
     }
 
-    private fun registerUser(username: String, password: String) {
-        val registerRequest = RegisterRequest(username, password)
+    private fun registerUser(username: String, email: String, password: String) {
+        val registerRequest = RegisterRequest(username, email, password)
         val json = gson.toJson(registerRequest)
 
-        // לוגינג לבדיקה
         android.util.Log.d("RegisterActivity", "Request URL: ${ApiConfig.BASE_URL}${ApiConfig.REGISTER_ENDPOINT}")
         android.util.Log.d("RegisterActivity", "Request JSON: $json")
 
@@ -88,7 +94,6 @@ class RegisterActivity : AppCompatActivity() {
             override fun onResponse(call: Call, response: Response) {
                 val responseBody = response.body?.string()
 
-                // לוגינג לבדיקה
                 android.util.Log.d("RegisterActivity", "Response code: ${response.code}")
                 android.util.Log.d("RegisterActivity", "Response body: $responseBody")
 
@@ -102,7 +107,7 @@ class RegisterActivity : AppCompatActivity() {
                                     getString(R.string.registration_success),
                                     Toast.LENGTH_LONG
                                 ).show()
-                                // Contract flow: register -> login (token is returned only from /login)
+                                // Navigate to login screen
                                 val intent = Intent(this@RegisterActivity, LoginActivity::class.java)
                                 startActivity(intent)
                                 finish()
@@ -110,7 +115,7 @@ class RegisterActivity : AppCompatActivity() {
                                 android.util.Log.e("RegisterActivity", "Parse error", e)
                                 Toast.makeText(
                                     this@RegisterActivity,
-                                    "${getString(R.string.registration_error)}: ${e.message}\nתגובה: $responseBody",
+                                    "${getString(R.string.registration_error)}: ${e.message}",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -119,7 +124,7 @@ class RegisterActivity : AppCompatActivity() {
                             try {
                                 val errorResponse = gson.fromJson(responseBody, ErrorResponse::class.java)
                                 val errorMessage = if (errorResponse.error.contains("already exists", ignoreCase = true)) {
-                                    getString(R.string.user_exists_error)
+                                    "This username is already taken"
                                 } else {
                                     errorResponse.error
                                 }
@@ -132,7 +137,7 @@ class RegisterActivity : AppCompatActivity() {
                                 android.util.Log.e("RegisterActivity", "Error parse error", e)
                                 Toast.makeText(
                                     this@RegisterActivity,
-                                    "${getString(R.string.registration_error)}: ${response.code}\nתגובה: $responseBody",
+                                    "${getString(R.string.registration_error)}: ${response.code}",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -140,7 +145,7 @@ class RegisterActivity : AppCompatActivity() {
                         response.code == 409 -> {
                             Toast.makeText(
                                 this@RegisterActivity,
-                                getString(R.string.user_exists_error),
+                                "This username is already taken. Please choose a different username.",
                                 Toast.LENGTH_LONG
                             ).show()
                         }
@@ -148,7 +153,7 @@ class RegisterActivity : AppCompatActivity() {
                             android.util.Log.e("RegisterActivity", "Unknown error code: ${response.code}")
                             Toast.makeText(
                                 this@RegisterActivity,
-                                "${getString(R.string.registration_error)}: ${response.code}\nתגובה: $responseBody",
+                                "${getString(R.string.registration_error)}: ${response.code}",
                                 Toast.LENGTH_LONG
                             ).show()
                         }

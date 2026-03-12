@@ -52,12 +52,14 @@ class LoginActivity : AppCompatActivity() {
             val username = etUsername.text.toString().trim()
             val password = etPassword.text.toString().trim()
 
-            if (username.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, getString(R.string.empty_fields_error), Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+            when {
+                username.isEmpty() || password.isEmpty() -> {
+                    Toast.makeText(this, getString(R.string.empty_fields_error), Toast.LENGTH_SHORT).show()
+                }
+                else -> {
+                    loginUser(username, password)
+                }
             }
-
-            loginUser(username, password)
         }
 
         tvRegisterLink.setOnClickListener {
@@ -70,7 +72,6 @@ class LoginActivity : AppCompatActivity() {
         val loginRequest = LoginRequest(username, password)
         val json = gson.toJson(loginRequest)
 
-        // לוגינג לבדיקה
         android.util.Log.d("LoginActivity", "Request URL: ${ApiConfig.BASE_URL}${ApiConfig.LOGIN_ENDPOINT}")
         android.util.Log.d("LoginActivity", "Request JSON: $json")
 
@@ -96,91 +97,115 @@ class LoginActivity : AppCompatActivity() {
             override fun onResponse(call: Call, response: Response) {
                 val responseBody = response.body?.string()
 
-                // לוגינג לבדיקה
                 android.util.Log.d("LoginActivity", "Response code: ${response.code}")
                 android.util.Log.d("LoginActivity", "Response body: $responseBody")
 
                 runOnUiThread {
-                    if (responseBody.isNullOrEmpty()) {
-                        Toast.makeText(
-                            this@LoginActivity,
-                            "${getString(R.string.login_error)}: תגובה ריקה מהשרת",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        response.close()
-                        return@runOnUiThread
-                    }
-
-                    when {
-                        response.isSuccessful -> {
-                            try {
-                                val loginResponse = gson.fromJson(responseBody, LoginResponse::class.java)
-
-                                // בדיקה שכל השדות קיימים
-                                if (loginResponse.token.isEmpty()) {
-                                    Toast.makeText(
-                                        this@LoginActivity,
-                                        "${getString(R.string.login_error)}: טוקן לא תקין",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                    return@runOnUiThread
-                                }
-
-                                // שמירת הטוקן ופרטי המשתמש
-                                TokenManager.saveToken(
-                                    this@LoginActivity,
-                                    loginResponse.token,
-                                    loginResponse.user.id,
-                                    loginResponse.user.username
-                                )
-
-                                Toast.makeText(
-                                    this@LoginActivity,
-                                    getString(R.string.login_success),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-
-                                // Navigate to HomeActivity and finish LoginActivity
-                                val intent = Intent(this@LoginActivity, HomeActivity::class.java)
-                                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                startActivity(intent)
-                                finish()
-                            } catch (e: Exception) {
-                                android.util.Log.e("LoginActivity", "Parse error", e)
-                                Toast.makeText(
-                                    this@LoginActivity,
-                                    "${getString(R.string.login_error)}: ${e.message}\nתגובה: $responseBody",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        }
-                        response.code == 401 -> {
+                    try {
+                        if (responseBody.isNullOrEmpty()) {
+                            android.util.Log.e("LoginActivity", "Empty response from server")
                             Toast.makeText(
                                 this@LoginActivity,
-                                getString(R.string.invalid_credentials),
+                                "${getString(R.string.login_error)}: Empty response from server",
                                 Toast.LENGTH_LONG
                             ).show()
+                            response.close()
+                            return@runOnUiThread
                         }
-                        else -> {
-                            try {
-                                val errorResponse = gson.fromJson(responseBody, ErrorResponse::class.java)
+
+                        when {
+                            response.isSuccessful -> {
+                                try {
+                                    android.util.Log.d("LoginActivity", "Parsing login response...")
+                                    val loginResponse = gson.fromJson(responseBody, LoginResponse::class.java)
+                                    android.util.Log.d("LoginActivity", "Parsed response: loginOk=${loginResponse.loginOk}, username=${loginResponse.username}, email=${loginResponse.email}, otpToken length=${loginResponse.otpToken.length}")
+
+                                    if (!loginResponse.loginOk || loginResponse.otpToken.isEmpty()) {
+                                        android.util.Log.e("LoginActivity", "Invalid response: loginOk=${loginResponse.loginOk}, otpToken empty=${loginResponse.otpToken.isEmpty()}")
+                                        Toast.makeText(
+                                            this@LoginActivity,
+                                            "${getString(R.string.login_error)}: Invalid response",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        return@runOnUiThread
+                                    }
+
+                                    // Save otpToken and email for next step
+                                    android.util.Log.d("LoginActivity", "Saving tokens to TokenManager...")
+                                    TokenManager.saveOtpToken(
+                                        this@LoginActivity,
+                                        loginResponse.otpToken,
+                                        loginResponse.email
+                                    )
+                                    android.util.Log.d("LoginActivity", "Tokens saved successfully")
+
+                                    Toast.makeText(
+                                        this@LoginActivity,
+                                        "Login successful. Choose verification method.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+
+                                    val intent = Intent(this@LoginActivity, AuthMethodSelectionActivity::class.java)
+                                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    android.util.Log.d(
+                                        "LoginActivity",
+                                        "Navigating to ${AuthMethodSelectionActivity::class.java.simpleName}; extras=none (email/otpToken stored in TokenManager); email=${loginResponse.email}; otpTokenLength=${loginResponse.otpToken.length}"
+                                    )
+                                    android.util.Log.d(
+                                        "LoginActivity",
+                                        "Intent resolvable=${intent.resolveActivity(packageManager) != null}"
+                                    )
+                                    startActivity(intent)
+                                    android.util.Log.d("LoginActivity", "Activity started, calling finish()...")
+                                    finish()
+                                    android.util.Log.d("LoginActivity", "LoginActivity finished successfully")
+                                } catch (e: Exception) {
+                                    android.util.Log.e("LoginActivity", "Parse error: ${e.message}", e)
+                                    e.printStackTrace()
+                                    Toast.makeText(
+                                        this@LoginActivity,
+                                        "${getString(R.string.login_error)}: ${e.message}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                            response.code == 401 -> {
                                 Toast.makeText(
                                     this@LoginActivity,
-                                    "${getString(R.string.login_error)}: ${errorResponse.error}",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            } catch (e: Exception) {
-                                android.util.Log.e("LoginActivity", "Error parse error", e)
-                                Toast.makeText(
-                                    this@LoginActivity,
-                                    "${getString(R.string.login_error)}: ${response.code}\nתגובה: $responseBody",
+                                    "Invalid credentials",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
+                            else -> {
+                                try {
+                                    val errorResponse = gson.fromJson(responseBody, ErrorResponse::class.java)
+                                    Toast.makeText(
+                                        this@LoginActivity,
+                                        "${getString(R.string.login_error)}: ${errorResponse.error}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } catch (e: Exception) {
+                                    android.util.Log.e("LoginActivity", "Error parse error: ${e.message}", e)
+                                    Toast.makeText(
+                                        this@LoginActivity,
+                                        "${getString(R.string.login_error)}: ${response.code}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
                         }
+                    } catch (e: Exception) {
+                        android.util.Log.e("LoginActivity", "Unexpected error in onResponse: ${e.message}", e)
+                        e.printStackTrace()
+                        Toast.makeText(
+                            this@LoginActivity,
+                            "Unexpected error: ${e.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } finally {
+                        response.close()
                     }
                 }
-                response.close()
             }
         })
     }
